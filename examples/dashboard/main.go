@@ -51,8 +51,8 @@ var tabStyle = tab.Style{
 	SelectedBar: lipgloss.NewStyle().Foreground(mainAccent),
 }
 
-type tabKey struct{ action, svc string }
-
+// Tabs are scoped per service, so selecting a service swaps the main
+// view to that service's own open tabs (or nothing when it has none).
 type model struct {
 	services []service
 	focus    focusArea
@@ -61,12 +61,11 @@ type model struct {
 	navSel, navHover, navHoverBtn int
 	hotHover                      int
 
-	pins         pins.List
-	tabs         tab.Group[tabKey]
-	bottomTabs   tab.Group[tabKey]
-	topRS        tab.RenderState[tabKey]
-	botRS        tab.RenderState[tabKey]
-	activeBottom bool
+	pins       pins.List
+	tabs       map[string]tab.Group[string]
+	bottomTabs map[string]tab.Group[string]
+	topRS      tab.RenderState[string]
+	botRS      tab.RenderState[string]
 
 	menu    menu.Group[string]
 	menuSvc string
@@ -84,8 +83,14 @@ func focusCfg() focus.Config[focusArea] {
 	}
 }
 
-func (m model) bodyH() int  { return max(m.h-1, 3) }
-func (m model) split() bool { return len(m.bottomTabs.Tabs) > 0 }
+func (m model) bodyH() int { return max(m.h-1, 3) }
+
+func (m model) selID() string {
+	if m.navSel >= 0 && m.navSel < len(m.services) {
+		return m.services[m.navSel].id
+	}
+	return ""
+}
 
 func (m model) layout() panel.Split[focusArea] {
 	b := panel.Borders{Top: 1, Right: 1, Bottom: 1, Left: 1}
@@ -137,25 +142,37 @@ func (m model) svc(id string) service {
 }
 
 func (m *model) openTab(action, id string) {
-	key := tabKey{action, id}
-	t := tab.Tab[tabKey]{ID: key, Label: action + ": " + id, Closable: true, Style: tabStyle}
+	m.selectByID(id)
 	if action == "logs" {
-		t.Model = tab.Static(logs(m.svc(id)))
-		if _, ok := m.bottomTabs.Find(key); ok {
-			m.bottomTabs.Selected = key
+		g := m.bottomTabs[id]
+		if _, ok := g.Find("logs"); ok {
+			g.Selected = "logs"
 		} else {
-			m.bottomTabs, _ = m.bottomTabs.AddTab(t)
+			g, _ = g.AddTab(tab.Tab[string]{ID: "logs", Label: "Logs", Closable: true, Style: tabStyle, Model: tab.Static(logs(m.svc(id)))})
 		}
-		m.activeBottom = true
+		m.bottomTabs[id] = g
 		return
 	}
-	t.Model = tab.Static(properties(m.svc(id)))
-	if _, ok := m.tabs.Find(key); ok {
-		m.tabs.Selected = key
+	g := m.tabs[id]
+	if _, ok := g.Find("props"); ok {
+		g.Selected = "props"
 	} else {
-		m.tabs, _ = m.tabs.AddTab(t)
+		g, _ = g.AddTab(tab.Tab[string]{ID: "props", Label: "Properties", Closable: true, Style: tabStyle, Model: tab.Static(properties(m.svc(id)))})
 	}
-	m.activeBottom = false
+	m.tabs[id] = g
+}
+
+func (m *model) refreshProps(id string) {
+	g, ok := m.tabs[id]
+	if !ok {
+		return
+	}
+	for i := range g.Tabs {
+		if g.Tabs[i].ID == "props" {
+			g.Tabs[i].Model = tab.Static(properties(m.svc(id)))
+		}
+	}
+	m.tabs[id] = g
 }
 
 func (m model) contextMenu(s service) menu.Group[string] {
@@ -251,25 +268,8 @@ func (m model) key(k string) model {
 		case "down", "j":
 			m.pins.Move(1)
 		}
-	case focusMain:
-		switch k {
-		case "up", "k":
-			m.activeBottom = false
-		case "down", "j":
-			m.activeBottom = true
-		default:
-			if m.activeBottom {
-				m.bottomTabs, _ = m.bottomTabs.Update(keyMsg(k))
-			} else {
-				m.tabs, _ = m.tabs.Update(keyMsg(k))
-			}
-		}
 	}
 	return m
-}
-
-func keyMsg(k string) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 }
 
 func (m model) mouse(msg tea.MouseMsg) (model, tea.Cmd) {
@@ -288,7 +288,7 @@ func (m model) mouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	}
 
 	m.navHover, m.navHoverBtn, m.hotHover = -1, -1, -1
-	m.topRS, m.botRS = tab.RenderState[tabKey]{}, tab.RenderState[tabKey]{}
+	m.topRS, m.botRS = tab.RenderState[string]{}, tab.RenderState[string]{}
 	switch hit.Panel {
 	case focusNav:
 		nh := m.navStack().HitTest(hit.LocalX, hit.LocalY)
@@ -312,23 +312,34 @@ func (m model) mouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	return m, nil
 }
 
-// The body stacks the two groups as equal halves with no divider, so the bottom
-// group's local y is the hit minus the top height.
 func (m model) mainMouse(x, y int, press bool) model {
-	topH := (m.bodyH() - 2) / 2
-	if m.split() && y >= topH {
-		ly := y - topH
-		m.botRS = m.bottomTabs.HoverState(x, ly)
+	id := m.selID()
+	top, bot := m.tabs[id], m.bottomTabs[id]
+	hasTop, hasBot := len(top.Tabs) > 0, len(bot.Tabs) > 0
+	innerH := m.bodyH() - 2
+
+	// With both groups present the body is two equal halves and no divider,
+	// so a hit at or past the midline belongs to the bottom group, shifted up.
+	if hasTop && hasBot && y >= innerH/2 {
+		ly := y - innerH/2
+		m.botRS = bot.HoverState(x, ly)
 		if press {
-			m.bottomTabs, _ = m.bottomTabs.ClickAt(x, ly)
-			m.activeBottom = true
+			m.bottomTabs[id], _ = bot.ClickAt(x, ly)
 		}
 		return m
 	}
-	m.topRS = m.tabs.HoverState(x, y)
-	if press {
-		m.tabs, _ = m.tabs.ClickAt(x, y)
-		m.activeBottom = false
+	if hasTop {
+		m.topRS = top.HoverState(x, y)
+		if press {
+			m.tabs[id], _ = top.ClickAt(x, y)
+		}
+		return m
+	}
+	if hasBot {
+		m.botRS = bot.HoverState(x, y)
+		if press {
+			m.bottomTabs[id], _ = bot.ClickAt(x, y)
+		}
 	}
 	return m
 }
@@ -346,7 +357,6 @@ func (m model) navClick(nh navcard.Hit, x, y int) model {
 	m.navSel = nh.Card
 	s := m.services[nh.Card]
 	if nh.Button < 0 {
-		m.openTab("props", s.id)
 		return m
 	}
 	leftCount := 0
@@ -355,6 +365,7 @@ func (m model) navClick(nh navcard.Hit, x, y int) model {
 	}
 	if nh.Button < leftCount {
 		m.services[nh.Card].st = toggleState(s.st)
+		m.refreshProps(s.id)
 		return m
 	}
 	m.menu = m.contextMenu(s)
@@ -379,14 +390,20 @@ func fitLines(s string, n int) string {
 }
 
 func (m model) mainBody(w, innerH int) string {
-	if !m.split() {
-		return fitLines(m.tabs.Render(w, m.topRS), innerH)
+	id := m.selID()
+	top, bot := m.tabs[id], m.bottomTabs[id]
+	hasTop, hasBot := len(top.Tabs) > 0, len(bot.Tabs) > 0
+	switch {
+	case hasTop && hasBot:
+		th := innerH / 2
+		return fitLines(top.Render(w, m.topRS), th) + "\n" + fitLines(bot.Render(w, m.botRS), innerH-th)
+	case hasTop:
+		return fitLines(top.Render(w, m.topRS), innerH)
+	case hasBot:
+		return fitLines(bot.Render(w, m.botRS), innerH)
+	default:
+		return fitLines("", innerH)
 	}
-	topH := innerH / 2
-	botH := innerH - topH
-	top := fitLines(m.tabs.Render(w, m.topRS), topH)
-	bot := fitLines(m.bottomTabs.Render(w, m.botRS), botH)
-	return top + "\n" + bot
 }
 
 func (m model) View() string {
@@ -423,7 +440,7 @@ func (m model) View() string {
 		Left: []statusbar.Item{
 			{Key: "1-3", Text: "focus", Style: barStyle},
 			{Key: "↑↓", Text: "select", Style: barStyle},
-			{Key: "[ ]", Text: "tabs", Style: barStyle},
+			{Key: "⏎", Text: "open", Style: barStyle},
 			{Key: "⋯", Text: "menu", Style: barStyle},
 		},
 		Right: []statusbar.Item{{Key: "q", Text: "quit", Style: barStyle}},
@@ -433,7 +450,15 @@ func (m model) View() string {
 }
 
 func main() {
-	m := model{services: seed(), focus: focusNav, navHover: -1, navHoverBtn: -1, hotHover: -1}
+	m := model{
+		services:    seed(),
+		focus:       focusNav,
+		navHover:    -1,
+		navHoverBtn: -1,
+		hotHover:    -1,
+		tabs:        map[string]tab.Group[string]{},
+		bottomTabs:  map[string]tab.Group[string]{},
+	}
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
