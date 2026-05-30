@@ -1,8 +1,10 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -14,12 +16,28 @@ import (
 
 const sidebarW = 22
 
+//go:embed *_story.go
+var storyFS embed.FS
+
+func storySource(name string) string {
+	b, err := storyFS.ReadFile(name + "_story.go")
+	if err != nil {
+		return "(source unavailable)"
+	}
+	s := strings.ReplaceAll(string(b), "\t", "  ")
+	if i := strings.Index(s, "func "); i >= 0 {
+		return s[i:]
+	}
+	return s
+}
+
 type model struct {
-	catalog []Component
-	sel     int
-	story   int
-	hover   int
-	w, h    int
+	catalog  []Component
+	sel      int
+	story    int
+	hover    int
+	showCode bool
+	w, h     int
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -57,6 +75,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "c":
+			m.showCode = !m.showCode
 		case "up", "k":
 			m.sel, m.story = dec(m.sel), 0
 		case "down", "j":
@@ -125,19 +145,38 @@ func (m model) View() string {
 	comp := m.catalog[m.sel]
 	st := comp.Stories[m.story]
 	previewW := max(m.w-sidebarW, 12)
-	preview := box.Box{
-		LeftNotches:  []box.Notch{{Text: comp.Name}},
-		RightNotches: []box.Notch{{Text: fmt.Sprintf("%d/%d %s", m.story+1, len(comp.Stories), st.Name)}},
-		BorderColor:  accent,
-		Body:         st.Render(previewW-2, bodyH-2),
-	}.Render(previewW, bodyH)
+
+	var right string
+	if m.showCode {
+		ph := max(bodyH/2, 3)
+		ch := max(bodyH-ph, 3)
+		preview := box.Box{
+			LeftNotches:  []box.Notch{{Text: comp.Name}},
+			RightNotches: []box.Notch{{Text: fmt.Sprintf("%d/%d %s", m.story+1, len(comp.Stories), st.Name)}},
+			BorderColor:  accent,
+			Body:         st.Render(previewW-2, ph-2),
+		}.Render(previewW, ph)
+		code := box.Box{
+			LeftNotches: []box.Notch{{Text: "code"}},
+			BorderColor: accent,
+			Body:        storySource(comp.Name),
+		}.Render(previewW, ch)
+		right = lipgloss.JoinVertical(lipgloss.Left, preview, code)
+	} else {
+		right = box.Box{
+			LeftNotches:  []box.Notch{{Text: comp.Name}},
+			RightNotches: []box.Notch{{Text: fmt.Sprintf("%d/%d %s", m.story+1, len(comp.Stories), st.Name)}},
+			BorderColor:  accent,
+			Body:         st.Render(previewW-2, bodyH-2),
+		}.Render(previewW, bodyH)
+	}
 
 	bar := statusbar.Bar{
-		Left:  []statusbar.Item{{Key: "↑↓/click", Text: "component"}, {Key: "←→/scroll", Text: "variant"}},
+		Left:  []statusbar.Item{{Key: "↑↓/click", Text: "component"}, {Key: "←→/scroll", Text: "variant"}, {Key: "c", Text: "code"}},
 		Right: []statusbar.Item{{Key: "q", Text: "quit"}},
 	}.Render(m.w)
 
-	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, sidebar, preview), bar)
+	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, sidebar, right), bar)
 }
 
 func main() {
