@@ -29,25 +29,56 @@ go get github.com/chenhunghan/boba@latest
 - **Bring your own style.** No package ships a theme or a color
   default — an unstyled component renders with the terminal's
   defaults, and every color is a choice you make at the call site.
-- **Composable primitives.** `focus`, `panel`, and `overlay` are
-  framework-level building blocks; `box`, `button`, `tab`, `menu`,
-  `navcard`, `statusbar`, `pins`, and `glyph` are components you
-  arrange inside them.
+- **Composable primitives.** `focus`, `panel`, `overlay`, `popup`, and
+  `scroll` are framework-level building blocks; the rest are components
+  (inputs, controls, overlays, containers) you arrange inside them.
 - **Keyboard-first.** Focus cycling, jumps, and hit-testing are
   first-class, with a uniform `HitTest(x, y)` shape across components.
 
 ## Components
 
+**Inputs & controls**
+
 | Package | What it is |
 | --- | --- |
-| [`box`](box) | Bordered region with labeled notches in the top edge |
 | [`button`](button) | Buttons + stacks with hover / active / selected state |
-| [`tab`](tab) | Dynamic tab group; each tab holds a `tea.Model` |
-| [`menu`](menu) | Popup menu with keyboard + mouse selection |
-| [`navcard`](navcard) | List/navigation card: title, subtitle, accent bar, inline actions |
+| [`input`](input) | Single-line text field with cursor + editing |
+| [`checkbox`](checkbox) | Labeled checkbox, toggled by key or click |
+| [`switch`](switch) | On/off switch |
+| [`toggle`](toggle) | Pressable toggle button |
+| [`togglegroup`](togglegroup) | Single-select row of toggles |
+| [`radiogroup`](radiogroup) | Single-select radio list |
+| [`checkboxgroup`](checkboxgroup) | Multi-select checkbox list |
+| [`slider`](slider) | Horizontal value slider |
+| [`numberfield`](numberfield) | Numeric field with steppers |
+| [`selectbox`](selectbox) | Select / dropdown with a popup list |
+
+**Display & feedback**
+
+| Package | What it is |
+| --- | --- |
+| [`progress`](progress) | Progress bar |
+| [`meter`](meter) | Gauge / meter with thresholds |
+| [`separator`](separator) | Horizontal / vertical divider |
 | [`statusbar`](statusbar) | Key/label status line |
-| [`pins`](pins) | Ordered, de-duplicated pinnable list with a selection cursor |
 | [`glyph`](glyph) | Sub/superscript numeral helpers |
+| [`tooltip`](tooltip) | Anchored text tooltip |
+
+**Containers, navigation & overlays**
+
+| Package | What it is |
+| --- | --- |
+| [`box`](box) | Bordered region with labeled notches |
+| [`navcard`](navcard) | List/navigation card with inline actions |
+| [`tab`](tab) | Dynamic tab group; each tab holds a `tea.Model` |
+| [`accordion`](accordion) | Stack of independently collapsible sections |
+| [`collapsible`](collapsible) | Single expand/collapse section |
+| [`toolbar`](toolbar) | Horizontal action bar |
+| [`menu`](menu) | Popup menu with keyboard + mouse |
+| [`popover`](popover) | Anchored floating panel |
+| [`dialog`](dialog) | Centered modal dialog |
+| [`scrollarea`](scrollarea) | Scrollable viewport with scrollbar |
+| [`pins`](pins) | Ordered, de-duplicated pinnable list |
 
 ## Primitives
 
@@ -56,6 +87,8 @@ go get github.com/chenhunghan/boba@latest
 | [`focus`](focus) | Pure-function focus state machine (jumps, ring cycling, esc, click) |
 | [`panel`](panel) | Layout tree (`Split` / `Panel`) + screen→local coords + hit-testing |
 | [`overlay`](overlay) | ANSI-aware compositing of one rendered string over another |
+| [`popup`](popup) | Placement (anchor / center with edge-flipping) + ANSI isolation |
+| [`scroll`](scroll) | Vertical viewport over multi-line content |
 
 ## Quick start
 
