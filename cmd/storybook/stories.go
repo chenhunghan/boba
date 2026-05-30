@@ -104,5 +104,11 @@ func catalog() []Component {
 				return "x" + glyph.Superscript(2) + "   H" + glyph.Subscript(2) + "O"
 			}},
 		}},
+		inputStories(), scrollStories(), switchStories(), toggleStories(),
+		togglegroupStories(), radiogroupStories(), checkboxgroupStories(),
+		sliderStories(), progressStories(), meterStories(), collapsibleStories(),
+		accordionStories(), toolbarStories(), tooltipStories(), popoverStories(),
+		dialogStories(), selectboxStories(), numberfieldStories(), scrollareaStories(),
+		tabStories(), navcardStories(), menuStories(),
 	}
 }
