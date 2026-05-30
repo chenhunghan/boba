@@ -557,7 +557,7 @@ func (s Stack) ClickAt(x, y int) (Stack, tea.Cmd) {
 	case hit.Card < 0:
 		return s, nil
 	case hit.Button >= 0:
-		return s, fire(ButtonActivatedMsg{Card: hit.Card, Button: hit.Button})
+		return s, fire(ButtonActivatedMsg(hit))
 	default:
 		s.Selected = hit.Card
 		return s, fire(CardActivatedMsg{Card: hit.Card})

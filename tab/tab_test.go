@@ -300,7 +300,7 @@ func TestUpdateActiveOnlyForwardsToSelected(t *testing.T) {
 		},
 		Selected: a,
 	}
-	g, _ = g.UpdateActive("hello")
+	g.UpdateActive("hello")
 	if mA.updateCount != 1 {
 		t.Errorf("active tab's Update should fire once; got %d", mA.updateCount)
 	}
@@ -323,7 +323,7 @@ func TestUpdateAllForwardsToAll(t *testing.T) {
 		},
 		Selected: a,
 	}
-	g, _ = g.UpdateAll(SizeMsg{Width: 80, Height: 24})
+	g.UpdateAll(SizeMsg{Width: 80, Height: 24})
 	if mA.updateCount != 1 || mB.updateCount != 1 {
 		t.Errorf("all tabs should receive UpdateAll msg; counts: %d, %d",
 			mA.updateCount, mB.updateCount)

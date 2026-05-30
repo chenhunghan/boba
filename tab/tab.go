@@ -114,12 +114,10 @@ func (s Style) ForState(state State) lipgloss.Style {
 	}
 }
 
-func (s Style) topChar() string       { return orDefault(s.TopChar, "─") }
-func (s Style) topActiveChar() string { return orDefault(s.TopActiveChar, "━") }
-func (s Style) sideChar() string      { return orDefault(s.SideChar, "│") }
-func (s Style) topLeftChar() string   { return orDefault(s.TopLeftChar, "┌") }
-func (s Style) topRightChar() string  { return orDefault(s.TopRightChar, "┐") }
-func (s Style) closeChar() string     { return orDefault(s.CloseChar, "×") }
+func (s Style) topChar() string      { return orDefault(s.TopChar, "─") }
+func (s Style) topLeftChar() string  { return orDefault(s.TopLeftChar, "┌") }
+func (s Style) topRightChar() string { return orDefault(s.TopRightChar, "┐") }
+func (s Style) closeChar() string    { return orDefault(s.CloseChar, "×") }
 
 func orDefault(s, def string) string {
 	if s == "" {
