@@ -19,8 +19,6 @@ type Component struct {
 	Stories []Story
 }
 
-// The storybook is a consumer, so it owns all styling here (the library
-// packages ship none).
 var (
 	accent = lipgloss.Color("63")
 	muted  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
