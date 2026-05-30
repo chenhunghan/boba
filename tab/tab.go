@@ -327,9 +327,6 @@ func (g Group[ID]) stateOf(id ID, state RenderState[ID]) State {
 // the tabs to whatever sits below — gap and trailing space on this
 // row are filled with the dash glyph so the line is continuous.
 // Tabs that don't fit are dropped from the right.
-//
-// state supplies per-render hover; pass the zero RenderState to
-// render with no tab hovered.
 func (g Group[ID]) RenderHeader(width int, state RenderState[ID]) string {
 	if width < 1 || len(g.Tabs) == 0 {
 		return ""
