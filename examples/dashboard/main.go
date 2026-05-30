@@ -192,7 +192,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.key(msg.String()), nil
 
 	case tea.MouseMsg:
-		return m.mouse(msg), nil
+		return m.mouse(msg)
 	}
 	return m, nil
 }
@@ -231,14 +231,15 @@ func keyMsg(k string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 }
 
-func (m model) mouse(msg tea.MouseMsg) model {
+func (m model) mouse(msg tea.MouseMsg) (model, tea.Cmd) {
 	if m.menu.Open {
-		m.menu, _ = m.menu.Update(msg)
-		return m
+		var cmd tea.Cmd
+		m.menu, cmd = m.menu.Update(msg)
+		return m, cmd
 	}
 	hit := panel.HitTest[focusArea](m.layout(), m.w, m.bodyH(), msg.X, msg.Y)
 	if !hit.Found {
-		return m
+		return m, nil
 	}
 	press := msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft
 	if press {
@@ -264,7 +265,7 @@ func (m model) mouse(msg tea.MouseMsg) model {
 			m.tabs, _ = m.tabs.ClickAt(hit.LocalX, hit.LocalY)
 		}
 	}
-	return m
+	return m, nil
 }
 
 func (m *model) selectByID(id string) {
