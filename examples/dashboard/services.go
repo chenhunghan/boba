@@ -57,9 +57,6 @@ func stateLabel(s state) string {
 	}
 }
 
-// Outer panel borders use a single neutral scheme so the three columns read
-// as one set; the per-region accents below are reserved for sub-component
-// chrome (tab borders, the menu border).
 var (
 	borderIdle   = lipgloss.Color("#4b5563")
 	borderActive = lipgloss.Color("#8c939e")
