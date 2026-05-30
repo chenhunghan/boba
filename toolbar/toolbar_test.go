@@ -46,9 +46,9 @@ func TestHitTest(t *testing.T) {
 		{-1, 0, -1}, // before first item
 		{0, 0, 0},   // left edge of "New"
 		{4, 0, 0},   // right edge of "New"
-		{5, 0, -1},  // gap between item 0 and 1
-		{6, 0, 1},   // left edge of "Open"
-		{12, 0, -1}, // gap between item 1 and 2
+		{5, 0, -1},
+		{6, 0, 1}, // left edge of "Open"
+		{12, 0, -1},
 		{13, 0, 2},  // left edge of "Save"
 		{18, 0, 2},  // right edge of "Save"
 		{19, 0, -1}, // past the last item

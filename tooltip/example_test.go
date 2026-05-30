@@ -16,7 +16,6 @@ func ExampleTooltip_Render() {
 		Visible: true,
 		Style:   tooltip.Style{Surface: lipgloss.NewStyle()},
 	}
-	// Each row carries a leading SGR reset; strip it to show the visible box.
 	out := strings.ReplaceAll(t.Render(), "\x1b[0m", "")
 	fmt.Println(out)
 	// Output:

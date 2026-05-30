@@ -101,7 +101,6 @@ func TestUnsetThresholdsUseNormal(t *testing.T) {
 		HighFill: zoneStyle("H"),
 		FillChar: "#",
 	}
-	// No Low/High set: a mid-range value uses Normal, never LowFill/HighFill.
 	m := meter.Meter{Value: 20, Max: 100, Width: 10, Style: st}
 	got := m.Render()
 	if !strings.Contains(got, "N") {

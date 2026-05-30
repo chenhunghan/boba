@@ -136,10 +136,6 @@ func (a ScrollArea) bar() string {
 // Render returns Height rows of Width cells: Content clipped to the viewport on
 // the left and the scrollbar on the rightmost column. Returns "" when Height or
 // Width is non-positive. With Width == 1 only the scrollbar is drawn.
-//
-// Each content row is truncated and padded to exactly Width-1 cells, so the
-// output is always a clean Height x Width rectangle even when a content line is
-// wider than the pane or the content has fewer lines than Height.
 func (a ScrollArea) Render() string {
 	if a.Height <= 0 || a.Width <= 0 {
 		return ""
