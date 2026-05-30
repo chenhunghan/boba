@@ -18,10 +18,36 @@ type model struct {
 	catalog []Component
 	sel     int
 	story   int
+	hover   int
 	w, h    int
 }
 
 func (m model) Init() tea.Cmd { return nil }
+
+func (m model) sidebarStack() button.Stack {
+	btns := make([]button.Button, len(m.catalog))
+	for i, c := range m.catalog {
+		btns[i] = button.Button{Text: c.Name, Style: sidebarBtn}
+	}
+	return button.Stack{
+		Buttons: btns, Width: sidebarW - 2, ItemHeight: 1,
+		Selected: m.sel, Hover: m.hover, Active: true,
+	}
+}
+
+func dec(x int) int {
+	if x > 0 {
+		return x - 1
+	}
+	return 0
+}
+
+func inc(x, n int) int {
+	if x < n-1 {
+		return x + 1
+	}
+	return x
+}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -32,26 +58,56 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "up", "k":
-			if m.sel > 0 {
-				m.sel--
-				m.story = 0
-			}
+			m.sel, m.story = dec(m.sel), 0
 		case "down", "j":
-			if m.sel < len(m.catalog)-1 {
-				m.sel++
-				m.story = 0
-			}
+			m.sel, m.story = inc(m.sel, len(m.catalog)), 0
 		case "left", "[":
-			if m.story > 0 {
-				m.story--
-			}
+			m.story = dec(m.story)
 		case "right", "]":
-			if m.story < len(m.catalog[m.sel].Stories)-1 {
-				m.story++
-			}
+			m.story = inc(m.story, len(m.catalog[m.sel].Stories))
 		}
+	case tea.MouseMsg:
+		m = m.mouse(msg)
 	}
 	return m, nil
+}
+
+func (m model) mouse(msg tea.MouseMsg) model {
+	overSidebar := msg.X < sidebarW
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		if overSidebar {
+			m.sel, m.story = dec(m.sel), 0
+		} else {
+			m.story = dec(m.story)
+		}
+		return m
+	case tea.MouseButtonWheelDown:
+		if overSidebar {
+			m.sel, m.story = inc(m.sel, len(m.catalog)), 0
+		} else {
+			m.story = inc(m.story, len(m.catalog[m.sel].Stories))
+		}
+		return m
+	}
+
+	if msg.X >= 1 && msg.X < sidebarW-1 && msg.Y >= 1 {
+		if idx, area := m.sidebarStack().HitTest(msg.X-1, msg.Y-1); area == button.HitBody {
+			m.hover = idx
+			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+				m.sel, m.story = idx, 0
+			}
+		}
+		return m
+	}
+
+	m.hover = -1
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.X >= sidebarW {
+		if n := len(m.catalog[m.sel].Stories); n > 0 {
+			m.story = (m.story + 1) % n
+		}
+	}
+	return m
 }
 
 func (m model) View() string {
@@ -60,17 +116,10 @@ func (m model) View() string {
 	}
 	bodyH := max(m.h-1, 3)
 
-	btns := make([]button.Button, len(m.catalog))
-	for i, c := range m.catalog {
-		btns[i] = button.Button{Text: c.Name, Style: sidebarBtn}
-	}
 	sidebar := box.Box{
 		LeftNotches: []box.Notch{{Text: "boba"}},
 		BorderColor: accent,
-		Body: button.Stack{
-			Buttons: btns, Width: sidebarW - 2, ItemHeight: 1,
-			Selected: m.sel, Hover: -1, Active: true,
-		}.Render(),
+		Body:        m.sidebarStack().Render(),
 	}.Render(sidebarW, bodyH)
 
 	comp := m.catalog[m.sel]
@@ -84,7 +133,7 @@ func (m model) View() string {
 	}.Render(previewW, bodyH)
 
 	bar := statusbar.Bar{
-		Left:  []statusbar.Item{{Key: "↑↓", Text: "component"}, {Key: "←→", Text: "variant"}},
+		Left:  []statusbar.Item{{Key: "↑↓/click", Text: "component"}, {Key: "←→/scroll", Text: "variant"}},
 		Right: []statusbar.Item{{Key: "q", Text: "quit"}},
 	}.Render(m.w)
 
@@ -92,7 +141,8 @@ func (m model) View() string {
 }
 
 func main() {
-	if _, err := tea.NewProgram(model{catalog: catalog()}, tea.WithAltScreen()).Run(); err != nil {
+	p := tea.NewProgram(model{catalog: catalog(), hover: -1}, tea.WithAltScreen(), tea.WithMouseAllMotion())
+	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
