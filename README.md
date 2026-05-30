@@ -116,8 +116,10 @@ Styling is yours to supply: set `BorderColor` / `FillColor` on the box,
 `Style` on each notch, and the `Style` struct on stateful components
 like `button.Stack` and `tab.Group`. Every package ships runnable
 [examples](https://pkg.go.dev/github.com/chenhunghan/boba) on
-pkg.go.dev, and [`examples/demo`](examples/demo) is a full runnable app
-(`go run ./examples/demo`).
+pkg.go.dev. Runnable apps in this repo: a 3-column service dashboard that
+composes most of the library ([`examples/dashboard`](examples/dashboard)),
+a minimal example ([`examples/demo`](examples/demo)), and a component
+gallery (`go run ./cmd/storybook`).
 
 ## Interactive components
 
