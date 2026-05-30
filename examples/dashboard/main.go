@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -29,7 +30,7 @@ const (
 )
 
 const (
-	hotbarW = 16
+	hotbarW = 5
 	navW    = 30
 )
 
@@ -43,9 +44,10 @@ var menuStyle = menu.Style{
 
 var tabStyle = tab.Style{
 	Inactive:    dim,
-	Hover:       lipgloss.NewStyle().Foreground(lipgloss.Color("#cccccc")),
+	Hover:       lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")),
 	Active:      lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Bold(true),
 	Border:      lipgloss.NewStyle().Foreground(borderIdle),
+	HoverBar:    lipgloss.NewStyle().Foreground(lipgloss.Color("#717780")),
 	SelectedBar: lipgloss.NewStyle().Foreground(mainAccent),
 }
 
@@ -57,9 +59,13 @@ type model struct {
 	w, h     int
 
 	navSel, navHover, navHoverBtn int
+	hotHover                      int
 
-	pins pins.List
-	tabs tab.Group[tabKey]
+	pins       pins.List
+	tabs       tab.Group[tabKey]
+	bottomTabs tab.Group[tabKey]
+	topRS      tab.RenderState[tabKey]
+	botRS      tab.RenderState[tabKey]
 
 	menu    menu.Group[string]
 	menuSvc string
@@ -100,15 +106,22 @@ func (m model) navStack() navcard.Stack {
 	}
 }
 
+func abbrev(s string) string {
+	if len(s) > 3 {
+		return s[:3]
+	}
+	return s
+}
+
 func (m model) hotStack() button.Stack {
 	ids := m.pins.IDs()
 	btns := make([]button.Button, len(ids))
 	for i, id := range ids {
-		btns[i] = button.Button{Text: id, Style: hotBtn}
+		btns[i] = button.Button{Text: abbrev(id), Style: hotBtn}
 	}
 	return button.Stack{
 		Buttons: btns, Width: hotbarW - 2, ItemHeight: 1,
-		Selected: m.pins.Selected(), Hover: -1, Active: m.focus == focusHotbar,
+		Selected: m.pins.Selected(), Hover: m.hotHover, Active: m.focus == focusHotbar,
 	}
 }
 
@@ -123,15 +136,22 @@ func (m model) svc(id string) service {
 
 func (m *model) openTab(action, id string) {
 	key := tabKey{action, id}
+	t := tab.Tab[tabKey]{ID: key, Label: action + ": " + id, Closable: true, Style: tabStyle}
+	if action == "logs" {
+		t.Model = tab.Static(logs(m.svc(id)))
+		if _, ok := m.bottomTabs.Find(key); ok {
+			m.bottomTabs.Selected = key
+			return
+		}
+		m.bottomTabs, _ = m.bottomTabs.AddTab(t)
+		return
+	}
+	t.Model = tab.Static(properties(m.svc(id)))
 	if _, ok := m.tabs.Find(key); ok {
 		m.tabs.Selected = key
 		return
 	}
-	body := properties(m.svc(id))
-	if action == "logs" {
-		body = logs(m.svc(id))
-	}
-	m.tabs, _ = m.tabs.AddTab(tab.Tab[tabKey]{ID: key, Label: action + ": " + id, Closable: true, Style: tabStyle, Model: tab.Static(body)})
+	m.tabs, _ = m.tabs.AddTab(t)
 }
 
 func (m model) contextMenu(s service) menu.Group[string] {
@@ -228,9 +248,7 @@ func (m model) key(k string) model {
 			m.pins.Move(1)
 		}
 	case focusMain:
-		var cmd tea.Cmd
-		m.tabs, cmd = m.tabs.Update(keyMsg(k))
-		_ = cmd
+		m.tabs, _ = m.tabs.Update(keyMsg(k))
 	}
 	return m
 }
@@ -254,6 +272,8 @@ func (m model) mouse(msg tea.MouseMsg) (model, tea.Cmd) {
 		m.focus = focus.ApplyClick(m.focus, hit.Panel, focusCfg()).Focus
 	}
 
+	m.navHover, m.navHoverBtn, m.hotHover = -1, -1, -1
+	m.topRS, m.botRS = tab.RenderState[tabKey]{}, tab.RenderState[tabKey]{}
 	switch hit.Panel {
 	case focusNav:
 		nh := m.navStack().HitTest(hit.LocalX, hit.LocalY)
@@ -262,15 +282,19 @@ func (m model) mouse(msg tea.MouseMsg) (model, tea.Cmd) {
 			m = m.navClick(nh, msg.X, msg.Y)
 		}
 	case focusHotbar:
-		if idx, area := m.hotStack().HitTest(hit.LocalX, hit.LocalY); area == button.HitBody && press {
-			if ids := m.pins.IDs(); idx < len(ids) {
-				m.pins.SetSelected(idx)
-				m.selectByID(ids[idx])
+		if idx, area := m.hotStack().HitTest(hit.LocalX, hit.LocalY); area == button.HitBody {
+			m.hotHover = idx
+			if press {
+				if ids := m.pins.IDs(); idx < len(ids) {
+					m.pins.SetSelected(idx)
+					m.selectByID(ids[idx])
+				}
 			}
 		}
 	case focusMain:
+		m = m.hoverMain(hit.LocalX, hit.LocalY)
 		if press {
-			m.tabs, _ = m.tabs.ClickAt(hit.LocalX, hit.LocalY)
+			m = m.clickMain(hit.LocalX, hit.LocalY)
 		}
 	}
 	return m, nil
@@ -306,11 +330,64 @@ func (m model) navClick(nh navcard.Hit, x, y int) model {
 	return m
 }
 
+func (m model) hoverMain(x, y int) model {
+	if len(m.bottomTabs.Tabs) == 0 {
+		m.topRS = m.tabs.HoverState(x, y)
+		return m
+	}
+	topH := (m.bodyH() - 2) / 2
+	switch {
+	case y < topH:
+		m.topRS = m.tabs.HoverState(x, y)
+	case y > topH:
+		m.botRS = m.bottomTabs.HoverState(x, y-topH-1)
+	}
+	return m
+}
+
+func (m model) clickMain(x, y int) model {
+	if len(m.bottomTabs.Tabs) == 0 {
+		m.tabs, _ = m.tabs.ClickAt(x, y)
+		return m
+	}
+	topH := (m.bodyH() - 2) / 2
+	switch {
+	case y < topH:
+		m.tabs, _ = m.tabs.ClickAt(x, y)
+	case y > topH:
+		m.bottomTabs, _ = m.bottomTabs.ClickAt(x, y-topH-1)
+	}
+	return m
+}
+
 func borderFor(focused bool) lipgloss.Color {
 	if focused {
 		return borderActive
 	}
 	return borderIdle
+}
+
+func clampLines(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m model) mainBody(w, h int) string {
+	top := m.tabs.Render(w, m.topRS)
+	if len(m.bottomTabs.Tabs) == 0 {
+		return top
+	}
+	topH := h / 2
+	botH := h - topH - 1
+	sep := dim.Render(strings.Repeat("─", w))
+	bottom := m.bottomTabs.Render(w, m.botRS)
+	return clampLines(top, topH) + "\n" + sep + "\n" + clampLines(bottom, botH)
 }
 
 func (m model) View() string {
@@ -320,7 +397,7 @@ func (m model) View() string {
 	bodyH := m.bodyH()
 
 	hot := box.Box{
-		LeftNotches: []box.Notch{{Text: "pins"}},
+		LeftNotches: []box.Notch{{Text: "p"}},
 		BorderColor: borderFor(m.focus == focusHotbar),
 		Body:        m.hotStack().Render(),
 	}.Render(hotbarW, bodyH)
@@ -335,7 +412,7 @@ func (m model) View() string {
 	main := box.Box{
 		LeftNotches: []box.Notch{{Text: "main"}},
 		BorderColor: borderFor(m.focus == focusMain),
-		Body:        m.tabs.Render(mainW-2, tab.RenderState[tabKey]{}),
+		Body:        m.mainBody(mainW-2, bodyH-2),
 	}.Render(mainW, bodyH)
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, hot, nav, main)
@@ -357,7 +434,7 @@ func (m model) View() string {
 }
 
 func main() {
-	m := model{services: seed(), focus: focusNav, navHover: -1, navHoverBtn: -1}
+	m := model{services: seed(), focus: focusNav, navHover: -1, navHoverBtn: -1, hotHover: -1}
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
