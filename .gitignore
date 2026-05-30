@@ -1,0 +1,25 @@
+# Compiled binaries / build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Test & coverage artifacts
+*.cover
+coverage.txt
+coverage.html
+
+# macOS
+.DS_Store
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+
+# Local tooling / editor settings
+.claude/
