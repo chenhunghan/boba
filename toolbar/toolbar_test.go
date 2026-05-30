@@ -43,17 +43,17 @@ func TestHitTest(t *testing.T) {
 		x, y int
 		want int
 	}{
-		{-1, 0, -1}, // before first item
-		{0, 0, 0},   // left edge of "New"
-		{4, 0, 0},   // right edge of "New"
+		{-1, 0, -1},
+		{0, 0, 0},
+		{4, 0, 0},
 		{5, 0, -1},
-		{6, 0, 1}, // left edge of "Open"
+		{6, 0, 1},
 		{12, 0, -1},
-		{13, 0, 2},  // left edge of "Save"
-		{18, 0, 2},  // right edge of "Save"
-		{19, 0, -1}, // past the last item
-		{0, 1, -1},  // below the row
-		{0, -1, -1}, // above the row
+		{13, 0, 2},
+		{18, 0, 2},
+		{19, 0, -1},
+		{0, 1, -1},
+		{0, -1, -1},
 	}
 	for _, c := range cases {
 		if got := bar.HitTest(c.x, c.y); got != c.want {
