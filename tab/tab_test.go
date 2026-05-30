@@ -73,6 +73,16 @@ func TestRenderHeaderDimensions(t *testing.T) {
 	}
 }
 
+func TestRenderHeaderEmpty(t *testing.T) {
+	g := Group[id]{}
+	if out := g.RenderHeader(40, RenderState[id]{}); out != "" {
+		t.Errorf("empty group RenderHeader = %q, want empty", out)
+	}
+	if out := g.Render(40, RenderState[id]{}); out != "" {
+		t.Errorf("empty group Render = %q, want empty", out)
+	}
+}
+
 // TestHitTest covers the main routing cases: tab body, close glyph,
 // gap between tabs, and out-of-bounds positions.
 func TestHitTest(t *testing.T) {
