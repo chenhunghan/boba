@@ -61,11 +61,12 @@ type model struct {
 	navSel, navHover, navHoverBtn int
 	hotHover                      int
 
-	pins       pins.List
-	tabs       tab.Group[tabKey]
-	bottomTabs tab.Group[tabKey]
-	topRS      tab.RenderState[tabKey]
-	botRS      tab.RenderState[tabKey]
+	pins         pins.List
+	tabs         tab.Group[tabKey]
+	bottomTabs   tab.Group[tabKey]
+	topRS        tab.RenderState[tabKey]
+	botRS        tab.RenderState[tabKey]
+	activeBottom bool
 
 	menu    menu.Group[string]
 	menuSvc string
@@ -83,7 +84,8 @@ func focusCfg() focus.Config[focusArea] {
 	}
 }
 
-func (m model) bodyH() int { return max(m.h-1, 3) }
+func (m model) bodyH() int  { return max(m.h-1, 3) }
+func (m model) split() bool { return len(m.bottomTabs.Tabs) > 0 }
 
 func (m model) layout() panel.Split[focusArea] {
 	b := panel.Borders{Top: 1, Right: 1, Bottom: 1, Left: 1}
@@ -141,17 +143,19 @@ func (m *model) openTab(action, id string) {
 		t.Model = tab.Static(logs(m.svc(id)))
 		if _, ok := m.bottomTabs.Find(key); ok {
 			m.bottomTabs.Selected = key
-			return
+		} else {
+			m.bottomTabs, _ = m.bottomTabs.AddTab(t)
 		}
-		m.bottomTabs, _ = m.bottomTabs.AddTab(t)
+		m.activeBottom = true
 		return
 	}
 	t.Model = tab.Static(properties(m.svc(id)))
 	if _, ok := m.tabs.Find(key); ok {
 		m.tabs.Selected = key
-		return
+	} else {
+		m.tabs, _ = m.tabs.AddTab(t)
 	}
-	m.tabs, _ = m.tabs.AddTab(t)
+	m.activeBottom = false
 }
 
 func (m model) contextMenu(s service) menu.Group[string] {
@@ -248,7 +252,18 @@ func (m model) key(k string) model {
 			m.pins.Move(1)
 		}
 	case focusMain:
-		m.tabs, _ = m.tabs.Update(keyMsg(k))
+		switch k {
+		case "up", "k":
+			m.activeBottom = false
+		case "down", "j":
+			m.activeBottom = true
+		default:
+			if m.activeBottom {
+				m.bottomTabs, _ = m.bottomTabs.Update(keyMsg(k))
+			} else {
+				m.tabs, _ = m.tabs.Update(keyMsg(k))
+			}
+		}
 	}
 	return m
 }
@@ -292,12 +307,30 @@ func (m model) mouse(msg tea.MouseMsg) (model, tea.Cmd) {
 			}
 		}
 	case focusMain:
-		m = m.hoverMain(hit.LocalX, hit.LocalY)
-		if press {
-			m = m.clickMain(hit.LocalX, hit.LocalY)
-		}
+		m = m.mainMouse(hit.LocalX, hit.LocalY, press)
 	}
 	return m, nil
+}
+
+// The body stacks the two groups as equal halves with no divider, so the bottom
+// group's local y is the hit minus the top height.
+func (m model) mainMouse(x, y int, press bool) model {
+	topH := (m.bodyH() - 2) / 2
+	if m.split() && y >= topH {
+		ly := y - topH
+		m.botRS = m.bottomTabs.HoverState(x, ly)
+		if press {
+			m.bottomTabs, _ = m.bottomTabs.ClickAt(x, ly)
+			m.activeBottom = true
+		}
+		return m
+	}
+	m.topRS = m.tabs.HoverState(x, y)
+	if press {
+		m.tabs, _ = m.tabs.ClickAt(x, y)
+		m.activeBottom = false
+	}
+	return m
 }
 
 func (m *model) selectByID(id string) {
@@ -330,36 +363,6 @@ func (m model) navClick(nh navcard.Hit, x, y int) model {
 	return m
 }
 
-func (m model) hoverMain(x, y int) model {
-	if len(m.bottomTabs.Tabs) == 0 {
-		m.topRS = m.tabs.HoverState(x, y)
-		return m
-	}
-	topH := (m.bodyH() - 2) / 2
-	switch {
-	case y < topH:
-		m.topRS = m.tabs.HoverState(x, y)
-	case y > topH:
-		m.botRS = m.bottomTabs.HoverState(x, y-topH-1)
-	}
-	return m
-}
-
-func (m model) clickMain(x, y int) model {
-	if len(m.bottomTabs.Tabs) == 0 {
-		m.tabs, _ = m.tabs.ClickAt(x, y)
-		return m
-	}
-	topH := (m.bodyH() - 2) / 2
-	switch {
-	case y < topH:
-		m.tabs, _ = m.tabs.ClickAt(x, y)
-	case y > topH:
-		m.bottomTabs, _ = m.bottomTabs.ClickAt(x, y-topH-1)
-	}
-	return m
-}
-
 func borderFor(focused bool) lipgloss.Color {
 	if focused {
 		return borderActive
@@ -367,27 +370,23 @@ func borderFor(focused bool) lipgloss.Color {
 	return borderIdle
 }
 
-func clampLines(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
+func fitLines(s string, n int) string {
 	lines := strings.Split(s, "\n")
-	if len(lines) > n {
-		lines = lines[:n]
+	for len(lines) < n {
+		lines = append(lines, "")
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines[:n], "\n")
 }
 
-func (m model) mainBody(w, h int) string {
-	top := m.tabs.Render(w, m.topRS)
-	if len(m.bottomTabs.Tabs) == 0 {
-		return top
+func (m model) mainBody(w, innerH int) string {
+	if !m.split() {
+		return fitLines(m.tabs.Render(w, m.topRS), innerH)
 	}
-	topH := h / 2
-	botH := h - topH - 1
-	sep := dim.Render(strings.Repeat("─", w))
-	bottom := m.bottomTabs.Render(w, m.botRS)
-	return clampLines(top, topH) + "\n" + sep + "\n" + clampLines(bottom, botH)
+	topH := innerH / 2
+	botH := innerH - topH
+	top := fitLines(m.tabs.Render(w, m.topRS), topH)
+	bot := fitLines(m.bottomTabs.Render(w, m.botRS), botH)
+	return top + "\n" + bot
 }
 
 func (m model) View() string {
@@ -422,9 +421,9 @@ func (m model) View() string {
 
 	bar := statusbar.Bar{
 		Left: []statusbar.Item{
-			{Key: "1/2/3", Text: "focus", Style: barStyle},
+			{Key: "1-3", Text: "focus", Style: barStyle},
 			{Key: "↑↓", Text: "select", Style: barStyle},
-			{Key: "click", Text: "act", Style: barStyle},
+			{Key: "[ ]", Text: "tabs", Style: barStyle},
 			{Key: "⋯", Text: "menu", Style: barStyle},
 		},
 		Right: []statusbar.Item{{Key: "q", Text: "quit", Style: barStyle}},
