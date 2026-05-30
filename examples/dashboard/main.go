@@ -35,10 +35,18 @@ const (
 
 var menuStyle = menu.Style{
 	Surface:  lipgloss.Color("236"),
-	Inactive: lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("236")),
-	Hover:    lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Background(accent).Bold(true),
+	Inactive: lipgloss.NewStyle().Foreground(lipgloss.Color("#cccccc")).Background(lipgloss.Color("236")),
+	Hover:    lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#3a5a8a")).Bold(true),
 	Disabled: dim.Background(lipgloss.Color("236")),
-	Border:   lipgloss.NewStyle().Foreground(accent).Background(lipgloss.Color("236")),
+	Border:   lipgloss.NewStyle().Foreground(navAccent).Background(lipgloss.Color("236")),
+}
+
+var tabStyle = tab.Style{
+	Inactive:    dim,
+	Hover:       lipgloss.NewStyle().Foreground(lipgloss.Color("#cccccc")),
+	Active:      lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Bold(true),
+	Border:      lipgloss.NewStyle().Foreground(borderIdle),
+	SelectedBar: lipgloss.NewStyle().Foreground(mainAccent),
 }
 
 type tabKey struct{ action, svc string }
@@ -123,7 +131,7 @@ func (m *model) openTab(action, id string) {
 	if action == "logs" {
 		body = logs(m.svc(id))
 	}
-	m.tabs, _ = m.tabs.AddTab(tab.Tab[tabKey]{ID: key, Label: action + ": " + id, Closable: true, Model: tab.Static(body)})
+	m.tabs, _ = m.tabs.AddTab(tab.Tab[tabKey]{ID: key, Label: action + ": " + id, Closable: true, Style: tabStyle, Model: tab.Static(body)})
 }
 
 func (m model) contextMenu(s service) menu.Group[string] {
@@ -300,9 +308,9 @@ func (m model) navClick(nh navcard.Hit, x, y int) model {
 
 func borderFor(focused bool) lipgloss.Color {
 	if focused {
-		return accent
+		return borderActive
 	}
-	return lipgloss.Color("#4b5563")
+	return borderIdle
 }
 
 func (m model) View() string {
@@ -337,12 +345,12 @@ func (m model) View() string {
 
 	bar := statusbar.Bar{
 		Left: []statusbar.Item{
-			{Key: "1/2/3", Text: "focus"},
-			{Key: "↑↓", Text: "select"},
-			{Key: "click", Text: "act"},
-			{Key: "⋯", Text: "menu"},
+			{Key: "1/2/3", Text: "focus", Style: barStyle},
+			{Key: "↑↓", Text: "select", Style: barStyle},
+			{Key: "click", Text: "act", Style: barStyle},
+			{Key: "⋯", Text: "menu", Style: barStyle},
 		},
-		Right: []statusbar.Item{{Key: "q", Text: "quit"}},
+		Right: []statusbar.Item{{Key: "q", Text: "quit", Style: barStyle}},
 	}.Render(m.w)
 
 	return lipgloss.JoinVertical(lipgloss.Left, row, bar)

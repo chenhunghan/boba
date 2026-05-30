@@ -7,6 +7,7 @@ import (
 
 	"github.com/chenhunghan/boba/button"
 	"github.com/chenhunghan/boba/navcard"
+	"github.com/chenhunghan/boba/statusbar"
 )
 
 type state int
@@ -56,9 +57,23 @@ func stateLabel(s state) string {
 	}
 }
 
+// Outer panel borders use a single neutral scheme so the three columns read
+// as one set; the per-region accents below are reserved for sub-component
+// chrome (tab borders, the menu border).
 var (
-	accent   = lipgloss.Color("63")
-	dim      = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	borderIdle   = lipgloss.Color("#4b5563")
+	borderActive = lipgloss.Color("#8c939e")
+
+	navAccent  = lipgloss.Color("#bd93f9") // navigator region
+	mainAccent = lipgloss.Color("#73c990") // main region
+
+	dim = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+
+	barStyle = statusbar.ItemStyle{
+		Key:  lipgloss.NewStyle().Foreground(lipgloss.Color("#bbbbbb")).Bold(true),
+		Text: dim,
+	}
+
 	startBtn = button.Style{
 		Inactive: lipgloss.NewStyle().Foreground(lipgloss.Color("#9ed99e")).Background(lipgloss.Color("#1e3a1e")),
 		Hover:    lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#3d8b3d")).Bold(true),
@@ -70,9 +85,9 @@ var (
 		Active:   lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#e88e22")),
 	}
 	dotsBtn = button.Style{
-		Inactive: dim,
-		Hover:    lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Bold(true),
-		Active:   lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")),
+		Inactive: lipgloss.NewStyle().Foreground(lipgloss.Color("#dddddd")).Background(lipgloss.Color("#3a3a4a")),
+		Hover:    lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#5a5a6a")).Bold(true),
+		Active:   lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#7a6dab")),
 	}
 	hotBtn = button.Style{
 		Inactive: lipgloss.NewStyle().Background(lipgloss.Color("237")),
@@ -82,20 +97,20 @@ var (
 )
 
 func cardStyle() navcard.Style {
-	mk := func(barColor lipgloss.Color, titleColor lipgloss.Color) navcard.StateStyle {
+	mk := func(barColor, titleColor, subColor lipgloss.Color) navcard.StateStyle {
 		return navcard.StateStyle{
 			Bar:         lipgloss.NewStyle().Foreground(barColor),
 			BarChar:     "▌",
 			Fill:        lipgloss.NewStyle(),
 			Title:       lipgloss.NewStyle().Foreground(titleColor).Bold(true),
-			Subtitle:    dim,
-			Description: dim,
+			Subtitle:    lipgloss.NewStyle().Foreground(subColor),
+			Description: lipgloss.NewStyle().Foreground(subColor),
 		}
 	}
 	return navcard.Style{
-		Inactive: mk("#4b5563", "#bbbbbb"),
-		Hover:    mk("#2a6da3", "#ffffff"),
-		Active:   mk(accent, "#ffffff"),
+		Inactive: mk("#4b5563", "#bbbbbb", "#888888"),
+		Hover:    mk("#2a6da3", "#ffffff", "#aaaaaa"),
+		Active:   mk("#3d90ce", "#ffffff", "#aaaaaa"),
 	}
 }
 
@@ -119,7 +134,6 @@ func card(s service) navcard.Card {
 }
 
 func properties(s service) string {
-	key := dim.Render
 	val := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff")).Render
 	rows := [][2]string{
 		{"Status", stateLabel(s.st)},
@@ -128,7 +142,7 @@ func properties(s service) string {
 	}
 	out := ""
 	for _, r := range rows {
-		out += fmt.Sprintf("%s  %s\n", key(r[0]+":"), val(r[1]))
+		out += fmt.Sprintf("%s  %s\n", dim.Render(r[0]+":"), val(r[1]))
 	}
 	return out
 }
